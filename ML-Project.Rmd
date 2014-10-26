@@ -1,0 +1,143 @@
+---
+title: 'Practical Machine Learning: Course Project'
+author: "cryptoknight7"
+date: "Sun 26 Oct 2014"
+output: html_document
+---
+
+### Executive Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The purpose of this project is to predict how well participants performed exercises by using accelerometer data harvested from sensors worn by participants on belt, forearm, arm, and dumbbells.  
+
+### Libraries Leveraged
+The project analysis was performed using the following libraries:
+
+* `caret`
+* `corrplot`
+* `kernlab`
+* `knitr`
+* `randomForest`
+
+```{r echo = FALSE}
+suppressWarnings(suppressMessages(library(caret)))
+suppressWarnings(suppressMessages(library(corrplot)))
+suppressWarnings(suppressMessages(library(kernlab)))
+suppressWarnings(suppressMessages(library(knitr)))
+suppressWarnings(suppressMessages(library(randomForest)))
+```
+```{r setoptions, echo = FALSE}
+opts_chunk$set(cache = FALSE)
+```
+
+### Data Preparation
+The two data files -- one for training and one for testing -- used in this analysis were obtained from an Amazon cloudfront source and were originally from: http://groupware.les.inf.puc-rio.br/har.  
+
+*The latest download of the data sets used for this report were from 26 Oct 2014.*
+
+```{r LoadAndPreProcData, eval = FALSE}
+## Configure source training and testing file locations.
+baseSourceUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/"
+trainingSrcFile <- paste0(baseSourceUrl, "pml-training.csv")
+testingSrcFile <- paste0(baseSourceUrl, "pml-testing.csv")
+
+## Configure destination training and testing file locations.
+if (!file.exists("data")) {dir.create("data")}
+baseDestinationPath <- "./data/"
+trainingDestFile <- paste0(baseDestinationPath, "pml-training.csv")
+testingDestFile <- paste0(baseDestinationPath, "pml-testing.csv")
+
+## Download training and testing data files.
+download.file(trainingSrcFile, destfile = trainingDestFile)
+download.file(testingSrcFile, destfile = testingDestFile)
+```
+
+The downloaded training data was then read into an R data frame.
+```{r ReadTrainingDataIntoR}
+## Read training data into R.
+trainingData <- read.csv("./data/pml-training.csv", 
+                         na.strings = c("NA", "", " "))
+```
+
+In order to most effectively analyze the data sets, they needed to be cleaned to remove empty values (NA's) and unnecessary columns (e.g., ID columns).
+```{r CleanTrainingData}
+## Clean training data by removing NAs and ID columns.
+trainingDataWithNAs <- apply(trainingData, 
+                             2, 
+                             function(x) {sum(is.na(x))})
+
+cleanTrainingData <- trainingData[, which(trainingDataWithNAs == 0)]
+
+cleanTrainingData <- cleanTrainingData[8:length(cleanTrainingData)]
+```
+
+### Random Forest Model Creation
+Having been retrieved and cleaned, the training data was then split into a 70:30 ratio between training data and cross-validation data.  The former would be used to fit the model and the latter would be used to cross-validate the created model.
+```{r PartitionTrainingData}
+## Partition training data into training and cross-validation sets.
+partitionedTrainingData <- createDataPartition(y = cleanTrainingData$classe, 
+                                               p = 0.7, 
+                                               list = FALSE)
+
+trainingData <- cleanTrainingData[partitionedTrainingData, ]
+crossValidationData <- cleanTrainingData[-partitionedTrainingData, ]
+```
+
+For this analysis, a random forest model was chosen to predict the classification of the data.  Because the forest model error rate grows when any two trees are correlated, a correlation matrix was plotted.  This provides the analyst with an understanding of how strongly variables are correlated to each other.
+```{r PlotCorrelationMatrix, fig.height = 6, fig.width = 8}
+## Plot correlation matrix.
+correlationMatrix <- cor(trainingData[, -length(trainingData)])
+
+corrplot(correlationMatrix, 
+         order = "FPC", 
+         method = "circle", 
+         type = "lower", 
+         tl.cex = 0.8,  
+         tl.col = rgb(0, 0, 0))
+```
+In the plot above, a strong negative relationship is given by the dark red colors, while a strong positive relationship is shown by the color blue.  Highly correlated predictors are safely included in the random forest model.  Finally, the model was fitted with the outcome set to the training class (and other variables) used to predict.
+
+```{r FitRandomForestModelToTrainingData}
+## Fit random forest model to training data.
+randomForestModel <- randomForest(classe ~ ., 
+                                  data = trainingData)
+randomForestModel
+```
+As seen above, the OOB estimate of error rate is ~0.5%, which is well within reasonable bounds to continue with cross-validating the model on more training data.
+
+### Random Forest Model Cross-Validation
+With the random forest model in place against the training data partition (70%), it was time to cross-validate the model on the partition cross-validation data (30%).  The accuracy of the random forest model is given in a confusion matrix which was loaded with the both results and the actual classifications.
+
+```{r CrossValidateRandomForestModel}
+## Cross-validate the random forest model on remaining (30%) cross-validation data.
+crossValidationPrediction <- predict(randomForestModel, 
+                                     crossValidationData)
+
+confusionMatrix(crossValidationData$classe, 
+                crossValidationPrediction)
+```
+The random forest model resulted in ~99% accuracy, leading to the conclusion that the model was a good fit for the data and would accurately predict against new testing data.
+
+### Testing Data Prediction
+The next step was to load the testing data set and use the random forest model to predict classification of the testing results.  Thus, the testing data set was loaded and cleaned and the model was applied, as shown below. 
+
+```{r ApplyRandomForestModelToTestingData}
+## Apply Random Forest model to cleaned testing data.
+testingData <- read.csv("./data/pml-testing.csv", 
+                      na.strings = c("NA",""," "))
+
+testingDataWithNAs <- apply(testingData, 
+                            2, 
+                            function(x) {sum(is.na(x))})
+
+cleanTestingData <- testingData[, which(testingDataWithNAs == 0)]
+cleanTestingData <- cleanTestingData[8:length(cleanTestingData)]
+
+## Use random forest model to predict classes of testing data set.
+testingDataPrediction <- predict(randomForestModel, 
+                                 cleanTestingData)
+testingDataPrediction
+```
+
+### Project Conclusion
+As shown with the testing data, the information gleaned from the accelerometer sensors provide ample information for accurately predicting how well a participant performed the exercises using a simple random forest model.
