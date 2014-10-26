@@ -71,7 +71,7 @@ cleanTrainingData <- trainingData[, which(trainingDataWithNAs == 0)]
 cleanTrainingData <- cleanTrainingData[8:length(cleanTrainingData)]
 ```
 
-### Random Forest Model Creation
+### Random Forest Model: Creation
 Having been retrieved and cleaned, the training data was then split into a 70:30 ratio between training data and cross-validation data.  The former would be used to fit the model and the latter would be used to cross-validate the created model.
 ```{r PartitionTrainingData}
 ## Partition training data into training and cross-validation sets.
@@ -105,7 +105,7 @@ randomForestModel
 ```
 As seen above, the OOB estimate of error rate is ~0.5%, which is well within reasonable bounds to continue with cross-validating the model on more training data.
 
-### Random Forest Model Cross-Validation
+### Random Forest Model: Cross-Validation
 With the random forest model in place against the training data partition (70%), it was time to cross-validate the model on the partition cross-validation data (30%).  The accuracy of the random forest model is given in a confusion matrix which was loaded with the both results and the actual classifications.
 
 ```{r CrossValidateRandomForestModel}
